@@ -23,11 +23,14 @@
     "echo" (echo in)))
 
 (defn -main [& _]
-  (-> (read-line)
-      (json/parse-string true)
-      handler
-      json/generate-string
-      println))
+  (loop [] 
+    (when-let [line (read-line)]
+      (-> line
+          (json/parse-string true)
+          handler
+          json/generate-string
+          println) 
+      (recur))))
 
 (rcf/tests
  (init
