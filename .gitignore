@@ -1,0 +1,7 @@
+/.clj-kondo
+/.lsp/.cache
+/maelstrom
+/store
+/target
+/.lein-repl-history
+/.nrepl-port
