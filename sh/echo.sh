@@ -1,4 +1,4 @@
 #!/bin/sh
-cd /home/cosmo-grant/git/personal/gossip-glomers
+cd "$(dirname "$0")/.."
 exec lein with-profile -dev run -m gossip-glomers.echo
 # exec bb -m gossip-glomers.echo
