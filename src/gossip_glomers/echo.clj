@@ -23,13 +23,13 @@
     "echo" (echo in)))
 
 (defn -main [& _]
-  (loop [] 
+  (loop []
     (when-let [line (read-line)]
       (-> line
           (json/parse-string true)
           handler
           json/generate-string
-          println) 
+          println)
       (recur))))
 
 (rcf/tests
@@ -48,9 +48,10 @@
  (echo
   {:src "c1",
    :dest "n1",
-   :body {:type "echo",
-          :msg_id 1,
+   :body {:type "echo"
+          :in_reply_to 1,
           :echo "Please echo 35"}})
+
 
  :=
  {:src "n1",
