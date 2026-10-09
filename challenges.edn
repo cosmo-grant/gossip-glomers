@@ -1,0 +1,4 @@
+{"echo" {:challenge/ns gossip-glomers.echo
+         :challenge/workload "echo"
+         :challenge/maelstrom-args ["--node-count" "1"
+                                    "--time-limit" "10"]}}
