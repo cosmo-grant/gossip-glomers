@@ -1,1 +1,2 @@
-{:deps {com.hyperfiddle/rcf {:mvn/version "20260626-131050"}} :paths ["src"]}
+{:deps {com.hyperfiddle/rcf {:mvn/version "20220926-202227"}}
+ :paths ["src"]}
