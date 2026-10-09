@@ -1,7 +1,7 @@
 (ns gossip-glomers.echo
-
-  (:require [cheshire.core :as json]
-            [hyperfiddle.rcf :as rcf]))
+  (:require
+   [cheshire.core :as json]
+   [hyperfiddle.rcf :as rcf]))
 
 (defn init [in]
   {:src (:dest in)
@@ -33,7 +33,8 @@
       (recur))))
 
 (rcf/tests
- (init
+ "init"
+ (handler
   {:src "c1",
    :dest "n1",
    :body {:type "init",
@@ -45,14 +46,13 @@
   :body {:type "init_ok",
          :in_reply_to 1}}
 
- (echo
+ "echo"
+ (handler
   {:src "c1",
    :dest "n1",
    :body {:type "echo"
-          :in_reply_to 1,
+          :msg_id 1,
           :echo "Please echo 35"}})
-
-
  :=
  {:src "n1",
   :dest "c1",
