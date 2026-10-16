@@ -1,4 +1,11 @@
 {"echo" {:challenge/ns gossip-glomers.echo
          :challenge/workload "echo"
          :challenge/maelstrom-args ["--node-count" "1"
-                                    "--time-limit" "10"]}}
+                                    "--time-limit" "10"]}
+  "unique-ids" {:challenge/ns gossip-glomers.unique-ids
+                :challenge/workload "unique-ids"
+                :challenge/maelstrom-args ["--node-count" "3"
+                                            "--time-limit" "30"
+                                            "--nemesis" "partition"
+                                            "--rate" "1000"
+                                            "--availability" "total"]}}
