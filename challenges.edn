@@ -2,10 +2,16 @@
          :challenge/workload "echo"
          :challenge/maelstrom-args ["--node-count" "1"
                                     "--time-limit" "10"]}
-  "unique-ids" {:challenge/ns gossip-glomers.unique-ids
-                :challenge/workload "unique-ids"
-                :challenge/maelstrom-args ["--node-count" "3"
-                                            "--time-limit" "30"
-                                            "--nemesis" "partition"
-                                            "--rate" "1000"
-                                            "--availability" "total"]}}
+ "unique-ids" {:challenge/ns gossip-glomers.unique-ids
+               :challenge/workload "unique-ids"
+               :challenge/maelstrom-args ["--node-count" "3"
+                                          "--time-limit" "30"
+                                          "--nemesis" "partition"
+                                          "--rate" "1000"
+                                          "--availability" "total"]}
+
+ "broadcast-a" {:challenge/ns gossip-glomers.broadcast-a
+                :challenge/workload "broadcast"
+                :challenge/maelstrom-args ["--node-count" "1"
+                                           "--time-limit" "20"
+                                           "--rate" "10"]}}
