@@ -14,4 +14,10 @@
                 :challenge/workload "broadcast"
                 :challenge/maelstrom-args ["--node-count" "1"
                                            "--time-limit" "20"
+                                           "--rate" "10"]}
+
+ "broadcast-b" {:challenge/ns gossip-glomers.broadcast-b
+                :challenge/workload "broadcast"
+                :challenge/maelstrom-args ["--node-count" "5"
+                                           "--time-limit" "20"
                                            "--rate" "10"]}}

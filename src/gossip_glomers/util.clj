@@ -7,12 +7,16 @@
    :dest (:src in)
    :body (assoc body :in_reply_to (get-in in [:body :msg_id]))})
 
+(defn send! [message]
+  (->> message
+       json/generate-string
+       println))
+
 (defn handle-messages [handler]
   (loop []
     (when-let [line (read-line)]
       (some-> line
               (json/parse-string true)
               handler
-              json/generate-string
-              println)
+              send!)
       (recur))))
