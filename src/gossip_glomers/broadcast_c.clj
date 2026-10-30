@@ -38,7 +38,7 @@
     ;; attempt resend in future
     ;; note: this will spawn threads equal to number of unacknowledged requests
     ;; note: also, reusing message ids when resending
-    (future
+    (util/vthread
       (Thread/sleep 1000)
       (when-let [payload (get @*messages-sent-but-unconfirmed msg-id)]
         (swap! *messages-sent-but-unconfirmed dissoc msg-id)

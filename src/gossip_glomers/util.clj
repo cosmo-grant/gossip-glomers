@@ -2,6 +2,9 @@
   (:require
    [cheshire.core :as json]))
 
+(defmacro vthread [& body]
+  `(Thread/startVirtualThread (fn [] ~@body)))
+
 (defn reply [in body]
   {:src (:dest in)
    :dest (:src in)
