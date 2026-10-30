@@ -7,10 +7,21 @@
    :dest (:src in)
    :body (assoc body :in_reply_to (get-in in [:body :msg_id]))})
 
+
+;; we may be calling send! from multiple threads
+;; println on its own is not thread-safe
+
+(def o (Object.))
+(defn print!
+  [value]
+  (locking o
+    (tap> value)
+    (println value)))
+
 (defn send! [message]
   (->> message
        json/generate-string
-       println))
+       print!))
 
 (defn handle-messages [handler]
   (loop []
