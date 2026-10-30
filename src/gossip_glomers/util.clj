@@ -34,3 +34,11 @@
               handler
               send!)
       (recur))))
+
+(defn handle-messages-v2 [handler]
+  (loop []
+    (when-let [line (read-line)]
+      (some-> line
+              (json/parse-string true)
+              handler)
+      (recur))))

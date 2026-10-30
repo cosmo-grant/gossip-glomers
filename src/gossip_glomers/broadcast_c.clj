@@ -1,7 +1,6 @@
 (ns gossip-glomers.broadcast-c
   (:refer-clojure :exclude [read])
   (:require
-   [hyperfiddle.rcf :as rcf]
    [gossip-glomers.util :as util]))
 
 ;; Strategy (assumes no partitions, reliable network):
@@ -23,7 +22,7 @@
 
 (defn init [in]
   (reset! *me (get-in in [:body :node_id]))
-  (util/reply in {:type "init_ok"}))
+  (util/send! (util/reply in {:type "init_ok"})))
 
 (defn durable-send!
   [payload]
@@ -46,8 +45,7 @@
 
 (defn broadcast_ok [in]
   (let [msg-id (get-in in [:body :msg_id])]
-    (swap! *messages-sent-but-unconfirmed dissoc msg-id))
-  nil)
+    (swap! *messages-sent-but-unconfirmed dissoc msg-id)))
 
 (defn broadcast [in]
   (let [message (get-in in [:body :message])]
@@ -58,14 +56,14 @@
                         :dest n
                         :body {:type "broadcast"
                                :message message}}))))
-  (util/reply in {:type "broadcast_ok"}))
+  (util/send! (util/reply in {:type "broadcast_ok"})))
 
 (defn read [in]
-  (util/reply in {:type "read_ok" :messages @*items-seen}))
+  (util/send! (util/reply in {:type "read_ok" :messages @*items-seen})))
 
 (defn topology [in]
   (reset! *neighbors (set (get-in in [:body :topology (keyword @*me)])))
-  (util/reply in {:type "topology_ok"}))
+  (util/send! (util/reply in {:type "topology_ok"})))
 
 (defn handler [in]
   (case (get-in in [:body :type])
@@ -77,46 +75,4 @@
     nil))
 
 (defn -main [& _]
-  (util/handle-messages handler))
-
-(rcf/tests
- "init"
- (handler
-  {:src "c1",
-   :dest "n1",
-   :body {:type "init",
-          :msg_id 1}})
-
- :=
- {:src "n1",
-  :dest "c1",
-  :body {:type "init_ok",
-         :in_reply_to 1}}
-
- "broadcast"
- (handler
-  {:src "c1",
-   :dest "n1",
-   :body {:type "broadcast"
-          :msg_id 1
-          :message 666}})
-
- :=
- {:src "n1",
-  :dest "c1",
-  :body {:type "broadcast_ok",
-         :in_reply_to 1}}
-
- "read"
- (handler
-  {:src "c1",
-   :dest "n1",
-   :body {:type "read"
-          :msg_id 1}})
-
- :=
- {:src "n1",
-  :dest "c1",
-  :body {:type "read_ok",
-         :messages #{666}
-         :in_reply_to 1}})
+  (util/handle-messages-v2 handler))
