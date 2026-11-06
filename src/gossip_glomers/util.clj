@@ -18,7 +18,7 @@
 (defn print!
   [value]
   (locking o
-    (tap> value)
+    ;;(tap> value)
     (println value)))
 
 (defn send! [message]
