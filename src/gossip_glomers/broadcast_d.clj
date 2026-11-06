@@ -19,35 +19,32 @@
 (def *messages-sent-but-unconfirmed (atom {}))
 (def *msg-id-counter (atom 1))
 
-
 (defn init [in]
   (reset! *me (get-in in [:body :node_id]))
   (util/send! (util/reply in {:type "init_ok"})))
 
 (defn durable-send!
   [payload]
-  (let [;; add a msg-id if not set
-        payload (if (get-in payload [:body :msg_id])
-                  payload
-                  (let [msg-id (swap! *msg-id-counter inc)]
-                    (assoc-in payload [:body :msg_id] msg-id)))
+  (let [ ;; always use fresh message id
+        payload (let [msg-id (swap! *msg-id-counter inc)]
+                  (assoc-in payload [:body :msg_id] msg-id))
         msg-id (get-in payload [:body :msg_id])]
     (swap! *messages-sent-but-unconfirmed assoc msg-id payload)
     (util/send! payload)
     ;; attempt resend in future
     ;; note: this will spawn threads equal to number of unacknowledged requests
-    ;; note: also, reusing message ids when resending
     (util/vthread
-      (Thread/sleep 1000)
-      (when-let [payload (get @*messages-sent-but-unconfirmed msg-id)]
-        (swap! *messages-sent-but-unconfirmed dissoc msg-id)
-        (durable-send! payload)))))
+     (Thread/sleep 1000)
+     (when-let [payload (get @*messages-sent-but-unconfirmed msg-id)]
+       (swap! *messages-sent-but-unconfirmed dissoc msg-id)
+       (durable-send! payload)))))
 
 (defn broadcast_ok [in]
   (let [msg-id (get-in in [:body :msg_id])]
     (swap! *messages-sent-but-unconfirmed dissoc msg-id)))
 
 (defn broadcast [in]
+  (util/send! (util/reply in {:type "broadcast_ok"}))
   (let [message (get-in in [:body :message])]
     (when-not (contains? @*items-seen message)
       (swap! *items-seen conj message)
@@ -55,8 +52,7 @@
         (durable-send! {:src @*me
                         :dest n
                         :body {:type "broadcast"
-                               :message message}}))))
-  (util/send! (util/reply in {:type "broadcast_ok"})))  ;; TODO: maybe acknowledge earlier?
+                               :message message}})))))
 
 (defn read [in]
   (util/send! (util/reply in {:type "read_ok" :messages @*items-seen})))
@@ -76,3 +72,7 @@
 
 (defn -main [& _]
   (util/handle-messages-v2 handler))
+
+;; reply broadcast_ok immediately, before sending to neighbours
+;; switch to java
+;; don't reuse message ids
