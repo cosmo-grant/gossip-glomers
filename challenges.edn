@@ -27,4 +27,11 @@
                 :challenge/maelstrom-args ["--node-count" "5"
                                            "--time-limit" "20"
                                            "--rate" "10"
-                                           "--nemesis" "partition"]}}
+                                           "--nemesis" "partition"]}
+
+ "broadcast-d" {:challenge/ns gossip-glomers.broadcast-d
+                :challenge/workload "broadcast"
+                :challenge/maelstrom-args ["--node-count" "25"
+                                           "--time-limit" "20"
+                                           "--rate" "100"
+                                           "--latency" "100"]}}
