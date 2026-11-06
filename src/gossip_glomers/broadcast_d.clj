@@ -40,7 +40,7 @@
        (durable-send! payload)))))
 
 (defn broadcast_ok [in]
-  (let [msg-id (get-in in [:body :msg_id])]
+  (let [msg-id (get-in in [:body :in_reply_to])]
     (swap! *messages-sent-but-unconfirmed dissoc msg-id)))
 
 (defn broadcast [in]
