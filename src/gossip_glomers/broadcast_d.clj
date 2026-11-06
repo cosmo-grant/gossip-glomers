@@ -44,7 +44,6 @@
     (swap! *messages-sent-but-unconfirmed dissoc msg-id)))
 
 (defn broadcast [in]
-  (util/send! (util/reply in {:type "broadcast_ok"}))
   (let [message (get-in in [:body :message])]
     (when-not (contains? @*items-seen message)
       (swap! *items-seen conj message)
@@ -52,7 +51,8 @@
         (durable-send! {:src @*me
                         :dest n
                         :body {:type "broadcast"
-                               :message message}})))))
+                               :message message}}))))
+  (util/send! (util/reply in {:type "broadcast_ok"})))
 
 (defn read [in]
   (util/send! (util/reply in {:type "read_ok" :messages @*items-seen})))

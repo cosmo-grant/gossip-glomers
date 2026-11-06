@@ -15,10 +15,11 @@
   {:mode {:default "maelstrom"
           :validate #{"maelstrom" "direct"}}
    :runner {:default "bb"
-            :validate #{"bb" "lein"}}})
+            :validate #{"bb" "lein"}}
+   :quiet {:coerce :boolean}})
 
 (def usage
-  "Usage: bb eval <name> [--mode maelstrom|direct] [--runner bb|lein]")
+  "Usage: bb eval <name> [--mode maelstrom|direct] [--runner bb|lein] [--quiet]")
 
 (defn print-err! [message]
   (binding [*out* *err*]
@@ -73,21 +74,27 @@
     (fs/set-posix-file-permissions path "rwxr-xr-x")
     (str path)))
 
-(defn shell! [command]
-  (print-err! (str "$ " (string/join " " command)))
-  (let [{:keys [exit]} (apply process/shell {:continue true} command)]
-    (System/exit exit)))
+(defn shell!
+  ([command] (shell! {} command))
+  ([process-opts command]
+   (print-err! (str "$ " (string/join " " command)))
+   (let [{:keys [exit]} (apply process/shell (assoc process-opts :continue true) command)]
+     exit)))
 
 (defn run-direct! [{:keys [runner challenge-ns]}]
-  (shell! (node-command runner challenge-ns)))
+  (System/exit (shell! (node-command runner challenge-ns))))
 
-(defn run-maelstrom! [{:keys [runner challenge challenge-ns] :as options}]
+(defn run-maelstrom! [{:keys [runner challenge challenge-ns quiet] :as options}]
   (let [wrapper (write-wrapper! options)]
     (print-err! (str "# " wrapper " runs: " (string/join " " (node-command runner challenge-ns))))
-    (shell! (concat [maelstrom-path "test"
-                     "-w" (:challenge/workload challenge)
-                     "--bin" wrapper]
-                    (:challenge/maelstrom-args challenge)))))
+    (let [exit (shell! (if quiet {:out :discard :err :discard} {})
+                       (concat [(:challenge/maelstrom-path challenge maelstrom-path) "test"
+                                "-w" (:challenge/workload challenge)
+                                "--bin" wrapper]
+                               (:challenge/maelstrom-args challenge)))]
+      (when quiet
+        (print-err! (str "# exit " exit "; see store/latest/results.edn and store/latest/jepsen.log")))
+      (System/exit exit))))
 
 (defn run [command-line-args]
   (let [{:keys [args opts]} (cli/parse-args command-line-args
