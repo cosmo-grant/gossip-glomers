@@ -34,4 +34,14 @@
                 :challenge/maelstrom-args ["--node-count" "25"
                                            "--time-limit" "20"
                                            "--rate" "100"
-                                           "--latency" "100"]}}
+                                           "--latency" "100"]}
+
+ "broadcast-d-trace" {:challenge/ns gossip-glomers.broadcast-d
+                      :challenge/workload "single-broadcast"
+                      :challenge/maelstrom-path "./sh/maelstrom-ext"
+                      :challenge/maelstrom-args ["--node-count" "25"
+                                                 "--topology" "tree5"
+                                                 "--time-limit" "20"
+                                                 "--latency" "100"
+                                                 "--rate" "1"
+                                                 "--origin" "n0"]}}

@@ -26,3 +26,10 @@ Defaults: `--mode maelstrom --runner bb`.
 
 To add a challenge, add an entry to `challenges.edn`.
 
+
+## Tracing a Single Broadcast
+
+`maelstrom-ext/` adds a `single-broadcast` workload to the stock Maelstrom jar (run via `sh/maelstrom-ext`). It sends one broadcast to `--origin` (default `n0`), waits, then reads every node. Its checker writes `trace.json` into the store dir.
+
+- `bb eval broadcast-d-trace`
+- open `viz/broadcast.html`, drop `store/single-broadcast/latest/trace.json` on it

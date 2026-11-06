@@ -1,0 +1,619 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Broadcast Propagation</title>
+<style>
+  :root {
+    --bg: #f7f7f5;
+    --panel: #ffffff;
+    --ink: #1d1d1b;
+    --muted: #77756f;
+    --line: #dddbd4;
+    --edge: #cfccc3;
+    --pending: #e9e7e1;
+    --origin: #c2410c;
+    --fresh: #2563eb;
+    --dup: #dc2626;
+    --ack: #16a34a;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #161615;
+      --panel: #1f1f1d;
+      --ink: #ecebe6;
+      --muted: #9a988f;
+      --line: #34332f;
+      --edge: #3e3d38;
+      --pending: #2c2b28;
+      --origin: #fb923c;
+      --fresh: #60a5fa;
+      --dup: #f87171;
+      --ack: #4ade80;
+    }
+  }
+  * { box-sizing: border-box; }
+  body {
+    margin: 0;
+    background: var(--bg);
+    color: var(--ink);
+    font: 14px/1.4 ui-sans-serif, system-ui, -apple-system, sans-serif;
+  }
+  main {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 320px;
+    gap: 12px;
+    padding: 12px;
+    height: 100vh;
+  }
+  .panel {
+    background: var(--panel);
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    padding: 12px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+  h1 { font-size: 16px; margin: 0 0 8px; }
+  h2 { font-size: 13px; margin: 12px 0 6px; color: var(--muted); font-weight: 600; text-transform: uppercase; letter-spacing: .04em; }
+  #drop {
+    border: 2px dashed var(--line);
+    border-radius: 8px;
+    padding: 32px;
+    text-align: center;
+    color: var(--muted);
+  }
+  #drop.over { border-color: var(--fresh); color: var(--ink); }
+  #stage { display: none; flex-direction: column; flex: 1; min-height: 0; }
+  svg { width: 100%; flex: 1; min-height: 0; display: block; }
+  .controls { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; margin-top: 8px; }
+  .controls input[type=range] { flex: 1; min-width: 160px; }
+  button, select {
+    font: inherit;
+    color: var(--ink);
+    background: var(--pending);
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    padding: 4px 10px;
+  }
+  #time { font-variant-numeric: tabular-nums; min-width: 90px; text-align: right; }
+  #histogram { width: 100%; height: 48px; display: block; margin-top: 8px; cursor: pointer; }
+  table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nums; }
+  td, th { padding: 2px 4px; text-align: right; border-bottom: 1px solid var(--line); }
+  td:first-child, th:first-child { text-align: left; }
+  .stats div { display: flex; justify-content: space-between; padding: 2px 0; }
+  .stats span:last-child { font-variant-numeric: tabular-nums; font-weight: 600; }
+  .legend { display: flex; flex-wrap: wrap; gap: 10px; color: var(--muted); font-size: 12px; margin-top: 6px; }
+  .swatch { display: inline-block; width: 10px; height: 10px; border-radius: 50%; margin-right: 4px; vertical-align: -1px; }
+  .table-wrap { flex: 1; min-height: 0; overflow: auto; }
+  @media (max-width: 860px) {
+    main { grid-template-columns: 1fr; height: auto; }
+    svg { flex: none; aspect-ratio: 1; }
+    .table-wrap { max-height: 40vh; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <section class="panel">
+    <h1>Broadcast propagation</h1>
+    <div id="drop">
+      Drop <code>trace.json</code> here (from <code>store/single-broadcast/latest/</code>)<br><br>
+      <input type="file" id="file" accept=".json,application/json">
+    </div>
+    <div id="stage">
+      <div class="controls">
+        <label>value <select id="value"></select></label>
+        <label>layout <select id="layout">
+          <option value="auto">auto</option>
+          <option value="grid">grid</option>
+          <option value="tree">tree</option>
+          <option value="circle">circle</option>
+        </select></label>
+        <label><input type="checkbox" id="acks"> show acks</label>
+        <span id="filename" style="color: var(--muted)"></span>
+      </div>
+      <svg id="graph" viewBox="0 0 600 600"></svg>
+      <div class="legend">
+        <span><span class="swatch" style="background: var(--origin)"></span>origin</span>
+        <span><span class="swatch" style="background: var(--fresh)"></span>new to receiver</span>
+        <span><span class="swatch" style="background: var(--dup)"></span>receiver already had it</span>
+        <span><span class="swatch" style="background: var(--ack)"></span>ack</span>
+      </div>
+      <canvas id="histogram"></canvas>
+      <div class="controls">
+        <button id="play">Play</button>
+        <select id="speed">
+          <option value="0.1">0.1×</option>
+          <option value="0.25" selected>0.25×</option>
+          <option value="1">1×</option>
+          <option value="4">4×</option>
+        </select>
+        <input type="range" id="scrub" min="0" max="1000" value="0">
+        <span id="time"></span>
+      </div>
+    </div>
+  </section>
+  <aside class="panel">
+    <h2>Stats</h2>
+    <div class="stats" id="stats">—</div>
+    <h2>First receive per node</h2>
+    <div class="table-wrap"><table id="nodes"></table></div>
+  </aside>
+</main>
+<script>
+const SVG_NS = "http://www.w3.org/2000/svg";
+const VIEW = 600;
+const PAD = 60;
+
+const state = {
+  trace: null,
+  value: null,
+  model: null,
+  t: 0,
+  playing: false,
+  lastFrame: null,
+};
+
+const $ = (id) => document.getElementById(id);
+const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+const isNode = (id) => /^n\d+$/.test(id);
+
+function loadTrace(text, name) {
+  const trace = JSON.parse(text);
+  const sends = new Map();
+  const flights = [];
+  for (const event of trace.events) {
+    if (event.type === "send") {
+      const flight = { ...event, sendT: event.t_ms, recvT: null };
+      sends.set(event.message_id, flight);
+      flights.push(flight);
+    } else if (event.type === "recv") {
+      const flight = sends.get(event.message_id);
+      if (flight) flight.recvT = event.t_ms;
+    }
+  }
+  const topology = {};
+  for (const flight of flights) {
+    if (flight.body.type === "topology" && flight.body.topology) {
+      Object.assign(topology, flight.body.topology);
+    }
+  }
+  const values = [...new Set(flights
+    .filter((flight) => flight.body.type === "broadcast")
+    .map((flight) => flight.body.message))].sort((a, b) => a - b);
+
+  state.trace = { nodes: trace.nodes, flights, topology, topologyName: trace.topology_name, values };
+  $("filename").textContent = [name, trace.topology_name].filter(Boolean).join(" · ");
+  $("value").innerHTML = values.map((value) => `<option>${value}</option>`).join("");
+  $("drop").style.display = "none";
+  $("stage").style.display = "flex";
+  selectValue(values[0]);
+}
+
+function selectValue(value) {
+  state.value = Number(value);
+  state.model = buildModel(state.trace, state.value);
+  state.t = state.model.start;
+  buildGraph();
+  renderStats();
+  render();
+}
+
+function buildModel(trace, value) {
+  const broadcasts = trace.flights.filter((flight) =>
+    flight.body.type === "broadcast" && flight.body.message === value);
+  const bySrcMsgId = new Map(broadcasts.map((flight) => [flight.src + "/" + flight.body.msg_id, flight]));
+  const acks = trace.flights.filter((flight) =>
+    flight.body.type === "broadcast_ok" &&
+    bySrcMsgId.has(flight.dest + "/" + flight.body.in_reply_to));
+
+  const clientSend = broadcasts.find((flight) => !isNode(flight.src));
+  const origin = clientSend ? clientSend.dest : broadcasts[0]?.src;
+
+  // first receive per node, in recv order
+  const first = new Map();
+  const ordered = broadcasts
+    .filter((flight) => flight.recvT !== null)
+    .sort((a, b) => a.recvT - b.recvT);
+  for (const flight of ordered) {
+    if (!isNode(flight.dest)) continue;
+    if (first.has(flight.dest)) {
+      flight.duplicate = true;
+      continue;
+    }
+    const hops = isNode(flight.src) ? (first.get(flight.src)?.hops ?? 0) + 1 : 0;
+    first.set(flight.dest, { t: flight.recvT, from: flight.src, hops });
+  }
+
+  const nodeFlights = broadcasts.filter((flight) => isNode(flight.src));
+  const start = (clientSend ? clientSend.sendT : Math.min(...broadcasts.map((flight) => flight.sendT))) - 20;
+  const end = Math.max(...[...broadcasts, ...acks].map((flight) => flight.recvT ?? flight.sendT)) + 20;
+  const covered = [...first.values()].map((entry) => entry.t);
+
+  return {
+    broadcasts,
+    acks,
+    origin,
+    first,
+    start,
+    end,
+    stats: {
+      "nodes reached": `${first.size} / ${trace.nodes.length}`,
+      "node→node broadcasts": nodeFlights.length,
+      "useful (first receive)": nodeFlights.filter((flight) => flight.recvT !== null && !flight.duplicate).length,
+      "redundant": nodeFlights.filter((flight) => flight.duplicate).length,
+      "lost (no recv)": nodeFlights.filter((flight) => flight.recvT === null).length,
+      "acks": acks.length,
+      "max hops": Math.max(0, ...[...first.values()].map((entry) => entry.hops)),
+      "full coverage after": first.size === trace.nodes.length && clientSend
+        ? `${(Math.max(...covered) - clientSend.sendT).toFixed(0)} ms`
+        : "—",
+    },
+  };
+}
+
+function gridPositions(nodes) {
+  const side = Math.ceil(Math.sqrt(nodes.length));
+  const step = (VIEW - 2 * PAD) / Math.max(1, side - 1);
+  const positions = {};
+  nodes.forEach((node, index) => {
+    const row = Math.floor(index / side);
+    const col = index % side;
+    positions[node] = { x: PAD + col * step, y: PAD + row * step };
+  });
+  return positions;
+}
+
+function circlePositions(nodes) {
+  const radius = VIEW / 2 - PAD;
+  const positions = {};
+  nodes.forEach((node, index) => {
+    const angle = -Math.PI / 2 + 2 * Math.PI * index / nodes.length;
+    positions[node] = { x: VIEW / 2 + radius * Math.cos(angle), y: VIEW / 2 + radius * Math.sin(angle) };
+  });
+  return positions;
+}
+
+function neighborsOf(topology, node) {
+  return (topology[node] || []).filter((neighbor) => neighbor !== node);
+}
+
+function bfsDepths(topology, root) {
+  const depths = new Map([[root, 0]]);
+  const queue = [root];
+  while (queue.length) {
+    const node = queue.shift();
+    for (const neighbor of neighborsOf(topology, node)) {
+      if (!depths.has(neighbor)) {
+        depths.set(neighbor, depths.get(node) + 1);
+        queue.push(neighbor);
+      }
+    }
+  }
+  return depths;
+}
+
+function isTree(topology, nodes) {
+  const edges = new Set();
+  for (const node of nodes) {
+    for (const neighbor of neighborsOf(topology, node)) edges.add([node, neighbor].sort().join("-"));
+  }
+  return nodes.length > 0 &&
+    edges.size === nodes.length - 1 &&
+    bfsDepths(topology, nodes[0]).size === nodes.length;
+}
+
+// root at the tree's center (smallest eccentricity), so the layout stays shallow
+function treeRoot(topology, nodes) {
+  let best = nodes[0];
+  let bestDepth = Infinity;
+  for (const node of nodes) {
+    const depth = Math.max(...bfsDepths(topology, node).values());
+    if (depth < bestDepth) {
+      best = node;
+      bestDepth = depth;
+    }
+  }
+  return best;
+}
+
+function radialTreePositions(topology, nodes) {
+  const order = new Map(nodes.map((node, index) => [node, index]));
+  const root = treeRoot(topology, nodes);
+  const children = new Map();
+  const depths = new Map([[root, 0]]);
+  const queue = [root];
+  while (queue.length) {
+    const node = queue.shift();
+    const kids = neighborsOf(topology, node)
+      .filter((neighbor) => !depths.has(neighbor))
+      .sort((a, b) => order.get(a) - order.get(b));
+    children.set(node, kids);
+    for (const kid of kids) {
+      depths.set(kid, depths.get(node) + 1);
+      queue.push(kid);
+    }
+  }
+  const leafCount = new Map();
+  const countLeaves = (node) => {
+    const kids = children.get(node);
+    const count = kids.length ? kids.reduce((sum, kid) => sum + countLeaves(kid), 0) : 1;
+    leafCount.set(node, count);
+    return count;
+  };
+  countLeaves(root);
+
+  const maxDepth = Math.max(1, ...depths.values());
+  const ring = (VIEW / 2 - PAD) / maxDepth;
+  const positions = {};
+  const place = (node, fromAngle, toAngle) => {
+    const angle = (fromAngle + toAngle) / 2;
+    const radius = depths.get(node) * ring;
+    positions[node] = { x: VIEW / 2 + radius * Math.cos(angle), y: VIEW / 2 + radius * Math.sin(angle) };
+    let cursor = fromAngle;
+    for (const kid of children.get(node)) {
+      const span = (toAngle - fromAngle) * leafCount.get(kid) / leafCount.get(node);
+      place(kid, cursor, cursor + span);
+      cursor += span;
+    }
+  };
+  place(root, -Math.PI / 2, 3 * Math.PI / 2);
+  return positions;
+}
+
+function chooseLayout({ nodes, topology, topologyName }) {
+  const picked = $("layout").value;
+  if (picked !== "auto") return picked;
+  if (topologyName === "grid" || Object.keys(topology).length === 0) return "grid";
+  if (isTree(topology, nodes)) return "tree";
+  return "circle";
+}
+
+function nodePositions(trace) {
+  switch (chooseLayout(trace)) {
+    case "tree":
+      return isTree(trace.topology, trace.nodes)
+        ? radialTreePositions(trace.topology, trace.nodes)
+        : circlePositions(trace.nodes);
+    case "circle":
+      return circlePositions(trace.nodes);
+    default:
+      return gridPositions(trace.nodes);
+  }
+}
+
+function nodeRadius(positions) {
+  const points = Object.values(positions);
+  let closest = Infinity;
+  for (let i = 0; i < points.length; i++) {
+    for (let j = i + 1; j < points.length; j++) {
+      closest = Math.min(closest, Math.hypot(points[i].x - points[j].x, points[i].y - points[j].y));
+    }
+  }
+  return Math.max(6, Math.min(22, closest * 0.45));
+}
+
+function element(name, attrs, parent) {
+  const node = document.createElementNS(SVG_NS, name);
+  for (const [key, value] of Object.entries(attrs)) node.setAttribute(key, value);
+  if (parent) parent.appendChild(node);
+  return node;
+}
+
+function buildGraph() {
+  const svg = $("graph");
+  svg.innerHTML = "";
+  const { nodes, topology } = state.trace;
+  const positions = nodePositions(state.trace);
+  const radius = nodeRadius(positions);
+  const scale = radius / 22;
+  state.positions = positions;
+
+  const edges = element("g", {}, svg);
+  const seen = new Set();
+  for (const [node, neighbors] of Object.entries(topology)) {
+    for (const neighbor of neighbors) {
+      const key = [node, neighbor].sort().join("-");
+      if (seen.has(key) || !positions[node] || !positions[neighbor]) continue;
+      seen.add(key);
+      element("line", {
+        x1: positions[node].x, y1: positions[node].y,
+        x2: positions[neighbor].x, y2: positions[neighbor].y,
+        stroke: css("--edge"), "stroke-width": 2,
+      }, edges);
+    }
+  }
+
+  state.nodeEls = {};
+  const nodeLayer = element("g", {}, svg);
+  for (const node of nodes) {
+    const { x, y } = positions[node];
+    const group = element("g", {}, nodeLayer);
+    const circle = element("circle", { cx: x, cy: y, r: radius, "stroke-width": 3 * scale }, group);
+    const label = element("text", {
+      x, y: y - 2 * scale, "text-anchor": "middle", "font-size": 12 * scale, "font-weight": 600,
+    }, group);
+    label.textContent = node;
+    const sub = element("text", { x, y: y + 11 * scale, "text-anchor": "middle", "font-size": 9 * scale }, group);
+    state.nodeEls[node] = { circle, label, sub };
+  }
+  state.flightLayer = element("g", {}, svg);
+}
+
+function flightPoint(flight, t) {
+  const from = state.positions[flight.src];
+  const to = state.positions[flight.dest];
+  if (!from || !to) return null;
+  const progress = (t - flight.sendT) / (flight.recvT - flight.sendT || 1);
+  const dx = to.x - from.x;
+  const dy = to.y - from.y;
+  const length = Math.hypot(dx, dy) || 1;
+  // offset each direction to its own side of the edge
+  const offset = 6;
+  return {
+    x: from.x + dx * progress - (dy / length) * offset,
+    y: from.y + dy * progress + (dx / length) * offset,
+  };
+}
+
+function render() {
+  const { model } = state;
+  if (!model) return;
+  const t = state.t;
+  const origin = css("--origin");
+  const fresh = css("--fresh");
+  const pending = css("--pending");
+  const ink = css("--ink");
+  const muted = css("--muted");
+  const maxHops = Math.max(1, ...[...model.first.values()].map((entry) => entry.hops));
+
+  for (const [node, els] of Object.entries(state.nodeEls)) {
+    const entry = model.first.get(node);
+    const received = entry && entry.t <= t;
+    const isOrigin = node === model.origin;
+    els.circle.setAttribute("fill", received ? fresh : pending);
+    els.circle.setAttribute("fill-opacity", received ? 0.25 + 0.6 * (1 - entry.hops / (maxHops + 1)) : 1);
+    els.circle.setAttribute("stroke", isOrigin ? origin : received ? fresh : css("--line"));
+    els.label.setAttribute("fill", ink);
+    els.sub.setAttribute("fill", muted);
+    els.sub.textContent = received ? `h${entry.hops} · ${(entry.t - model.start - 20).toFixed(0)}ms` : "";
+  }
+
+  const layer = state.flightLayer;
+  layer.innerHTML = "";
+  const flights = $("acks").checked ? [...model.broadcasts, ...model.acks] : model.broadcasts;
+  for (const flight of flights) {
+    if (flight.recvT === null || t < flight.sendT || t >= flight.recvT) continue;
+    const point = flightPoint(flight, t);
+    if (!point) continue;
+    const color = flight.body.type === "broadcast_ok" ? css("--ack")
+      : flight.duplicate ? css("--dup")
+      : fresh;
+    element("circle", { cx: point.x, cy: point.y, r: 5, fill: color }, layer);
+  }
+
+  $("time").textContent = `${(t - model.start - 20).toFixed(0)} ms`;
+  $("scrub").value = Math.round(1000 * (t - model.start) / (model.end - model.start));
+  drawHistogram();
+}
+
+function drawHistogram() {
+  const canvas = $("histogram");
+  const { model } = state;
+  const ratio = window.devicePixelRatio || 1;
+  const width = canvas.clientWidth;
+  const height = canvas.clientHeight;
+  canvas.width = width * ratio;
+  canvas.height = height * ratio;
+  const context = canvas.getContext("2d");
+  context.scale(ratio, ratio);
+  const bins = Math.max(1, Math.floor(width / 3));
+  const span = model.end - model.start;
+  const fresh = new Array(bins).fill(0);
+  const dup = new Array(bins).fill(0);
+  for (const flight of model.broadcasts) {
+    if (!isNode(flight.src)) continue;
+    const bin = Math.min(bins - 1, Math.floor((flight.sendT - model.start) / span * bins));
+    (flight.duplicate ? dup : fresh)[bin]++;
+  }
+  const max = Math.max(1, ...fresh.map((count, index) => count + dup[index]));
+  const barWidth = width / bins;
+  for (let index = 0; index < bins; index++) {
+    const freshHeight = fresh[index] / max * height;
+    const dupHeight = dup[index] / max * height;
+    context.fillStyle = css("--fresh");
+    context.fillRect(index * barWidth, height - freshHeight, barWidth - 0.5, freshHeight);
+    context.fillStyle = css("--dup");
+    context.fillRect(index * barWidth, height - freshHeight - dupHeight, barWidth - 0.5, dupHeight);
+  }
+  const cursor = (state.t - model.start) / span * width;
+  context.fillStyle = css("--ink");
+  context.fillRect(cursor - 1, 0, 2, height);
+}
+
+function renderStats() {
+  const { model } = state;
+  $("stats").innerHTML = Object.entries(model.stats)
+    .map(([key, value]) => `<div><span>${key}</span><span>${value}</span></div>`)
+    .join("");
+  const clientT = model.start + 20;
+  const rows = state.trace.nodes
+    .map((node) => [node, model.first.get(node)])
+    .sort((a, b) => (a[1]?.t ?? Infinity) - (b[1]?.t ?? Infinity));
+  $("nodes").innerHTML = "<tr><th>node</th><th>ms</th><th>hops</th><th>from</th></tr>" + rows
+    .map(([node, entry]) => entry
+      ? `<tr><td>${node}</td><td>${(entry.t - clientT).toFixed(0)}</td><td>${entry.hops}</td><td>${entry.from}</td></tr>`
+      : `<tr><td>${node}</td><td>—</td><td>—</td><td>—</td></tr>`)
+    .join("");
+}
+
+function tick(now) {
+  if (!state.playing) return;
+  if (state.lastFrame !== null) {
+    state.t += (now - state.lastFrame) * Number($("speed").value);
+    if (state.t >= state.model.end) {
+      state.t = state.model.end;
+      setPlaying(false);
+    }
+  }
+  state.lastFrame = now;
+  render();
+  requestAnimationFrame(tick);
+}
+
+function setPlaying(playing) {
+  state.playing = playing;
+  state.lastFrame = null;
+  $("play").textContent = playing ? "Pause" : "Play";
+  if (playing) {
+    if (state.t >= state.model.end) state.t = state.model.start;
+    requestAnimationFrame(tick);
+  }
+}
+
+function seekFraction(fraction) {
+  const { model } = state;
+  state.t = model.start + fraction * (model.end - model.start);
+  render();
+}
+
+function readFile(file) {
+  file.text().then((text) => loadTrace(text, file.name));
+}
+
+const drop = $("drop");
+document.addEventListener("dragover", (event) => {
+  event.preventDefault();
+  drop.classList.add("over");
+});
+document.addEventListener("dragleave", () => drop.classList.remove("over"));
+document.addEventListener("drop", (event) => {
+  event.preventDefault();
+  drop.classList.remove("over");
+  const file = event.dataTransfer.files[0];
+  if (file) readFile(file);
+});
+$("file").addEventListener("change", (event) => {
+  const file = event.target.files[0];
+  if (file) readFile(file);
+});
+$("value").addEventListener("change", (event) => selectValue(event.target.value));
+$("acks").addEventListener("change", render);
+$("layout").addEventListener("change", () => {
+  if (!state.trace) return;
+  buildGraph();
+  render();
+});
+$("play").addEventListener("click", () => setPlaying(!state.playing));
+$("scrub").addEventListener("input", (event) => seekFraction(event.target.value / 1000));
+$("histogram").addEventListener("click", (event) => {
+  const rect = event.target.getBoundingClientRect();
+  seekFraction((event.clientX - rect.left) / rect.width);
+});
+window.addEventListener("resize", () => state.model && drawHistogram());
+</script>
+</body>
+</html>
