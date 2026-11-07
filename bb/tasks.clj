@@ -19,10 +19,25 @@
 (def jvm-jar-path "target/gossip-glomers-jvm.jar")
 
 (def jvm-opts
-  ["-XX:+UseSerialGC"
+  [;; Single-threaded GC with the smallest footprint. The default (G1) adds
+   ;; remembered sets and per-core GC threads. With 25 node JVMs on one
+   ;; machine, parallel GC threads compete for the same cores. Node heaps
+   ;; are small, so serial pauses are short.
+   "-XX:+UseSerialGC"
+   ;; Max heap. The default is 1/4 of physical RAM per JVM, so 25 nodes can
+   ;; each grow large before GC runs. Node state (seen messages, pending
+   ;; retries) fits in a few MB. Raise this if a challenge holds more state.
    "-Xmx64m"
+   ;; Thread stack size (default 1MB). Platform threads (main, GC, JIT)
+   ;; reserve less memory. Virtual threads do not use this; their stacks
+   ;; live on the heap.
    "-Xss512k"
+   ;; Use only the C1 (client) JIT; never C2. C2 makes faster code, but it
+   ;; needs much CPU and memory to compile. Nodes run for seconds and spend
+   ;; most time waiting on I/O, so C2 does not pay back its cost.
    "-XX:TieredStopAtLevel=1"
+   ;; One JIT compiler thread instead of one per few cores. This limits CPU
+   ;; contention between the 25 JVMs at startup, when all compile at once.
    "-XX:CICompilerCount=1"])
 
 (def aot-training-input
