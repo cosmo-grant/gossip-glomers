@@ -1,4 +1,5 @@
 (ns gossip-glomers.broadcast-d
+  (:gen-class)
   (:refer-clojure :exclude [read])
   (:require
    [gossip-glomers.util :as util]))

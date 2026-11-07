@@ -1,4 +1,5 @@
 (ns gossip-glomers.broadcast-a
+  (:gen-class)
   (:refer-clojure :exclude [read])
   (:require
    [hyperfiddle.rcf :as rcf]

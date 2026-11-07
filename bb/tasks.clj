@@ -11,15 +11,20 @@
 
 (def maelstrom-path "./maelstrom/maelstrom")
 
+(def default-native-image-path
+  "")
+
+(def graal-jar-path "target/gossip-glomers-graal.jar")
+
 (def cli-spec
   {:mode {:default "maelstrom"
           :validate #{"maelstrom" "direct"}}
    :runner {:default "bb"
-            :validate #{"bb" "lein"}}
+            :validate #{"bb" "lein" "graal"}}
    :quiet {:coerce :boolean}})
 
 (def usage
-  "Usage: bb eval <name> [--mode maelstrom|direct] [--runner bb|lein] [--quiet]")
+  "Usage: bb eval <name> [--mode maelstrom|direct] [--runner bb|lein|graal] [--quiet]")
 
 (defn print-err! [message]
   (binding [*out* *err*]
@@ -29,15 +34,33 @@
   (print-err! message)
   (System/exit 1))
 
+(defn native-image-path []
+  (->> [(some-> (System/getenv "GRAALVM_HOME")
+                (fs/path "bin" "native-image"))
+        (fs/which "native-image")
+        default-native-image-path]
+       (remove nil?)
+       (filter fs/executable?)
+       first))
+
 (defn missing-tools [{:keys [mode runner]}]
   (cond-> []
-    (not (fs/which runner))
-    (conj (str runner " (not on PATH)"))
+    (and (= "bb" runner)
+         (not (fs/which "bb")))
+    (conj "bb (not on PATH)")
 
-    (and (or (= "lein" runner)
+    (and (#{"lein" "graal"} runner)
+         (not (fs/which "lein")))
+    (conj "lein (not on PATH)")
+
+    (and (or (#{"lein" "graal"} runner)
              (= "maelstrom" mode))
          (not (fs/which "java")))
     (conj "java (not on PATH)")
+
+    (and (= "graal" runner)
+         (not (native-image-path)))
+    (conj "native-image (install GraalVM, set GRAALVM_HOME)")
 
     (and (= "maelstrom" mode)
          (not (fs/exists? maelstrom-path)))
@@ -59,10 +82,14 @@
                   (cons "Missing tools:")
                   (string/join "\n"))))))
 
+(defn native-binary-path [challenge-ns]
+  (str (fs/path "target" "graal" "bin" (str challenge-ns))))
+
 (defn node-command [runner challenge-ns]
   (case runner
     "bb" ["bb" "-m" (str challenge-ns)]
-    "lein" ["lein" "with-profile" "-dev" "run" "-m" (str challenge-ns)]))
+    "lein" ["lein" "with-profile" "-dev" "run" "-m" (str challenge-ns)]
+    "graal" [(native-binary-path challenge-ns)]))
 
 (defn write-wrapper! [{:keys [challenge-name runner challenge-ns]}]
   (let [path (fs/path "target" "bin" (str challenge-name "-" runner ".sh"))]
@@ -80,6 +107,31 @@
    (print-err! (str "$ " (string/join " " command)))
    (let [{:keys [exit]} (apply process/shell (assoc process-opts :continue true) command)]
      exit)))
+
+(defn stale? [target sources]
+  (or (not (fs/exists? target))
+      (seq (fs/modified-since target sources))))
+
+(defn shell-or-exit! [command]
+  (let [exit (shell! command)]
+    (when-not (zero? exit)
+      (exit! (str "# failed (exit " exit "): " (string/join " " command))))))
+
+(defn build-native! [{:keys [challenge-ns]}]
+  (let [binary (native-binary-path challenge-ns)]
+    (when (stale? graal-jar-path ["src" "project.clj"])
+      (shell-or-exit! ["lein" "with-profile" "-dev,+graal" "uberjar"]))
+    (when (stale? binary [graal-jar-path])
+      (fs/create-dirs (fs/parent binary))
+      (shell-or-exit! [(str (native-image-path))
+                       "-cp" graal-jar-path
+                       "--features=clj_easy.graal_build_time.InitClojureClasses"
+                       ;; cheshire stores a JsonFactory in a var
+                       "--initialize-at-build-time=com.fasterxml.jackson"
+                       "--no-fallback"
+                       "-H:+ReportExceptionStackTraces"
+                       "-o" binary
+                       (munge (str challenge-ns))]))))
 
 (defn run-direct! [{:keys [runner challenge-ns]}]
   (System/exit (shell! (node-command runner challenge-ns))))
@@ -111,6 +163,8 @@
                          :challenge challenge
                          :challenge-ns (:challenge/ns challenge))]
       (check-tools! options)
+      (when (= "graal" (:runner opts))
+        (build-native! options))
       (case (:mode opts)
         "direct" (run-direct! options)
         "maelstrom" (run-maelstrom! options)))))

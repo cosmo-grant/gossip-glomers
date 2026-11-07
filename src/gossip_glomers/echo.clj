@@ -1,4 +1,5 @@
 (ns gossip-glomers.echo
+  (:gen-class)
   (:require
    [hyperfiddle.rcf :as rcf]
    [gossip-glomers.util :as util]))

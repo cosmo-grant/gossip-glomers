@@ -8,6 +8,7 @@ Working through [gossip glommers](https://fly.io/dist-sys/) in Clojure.
   - babashka
   - java + clojure + leiningen
   - gnuplot + graphviz (for maelstrom)
+  - GraalVM (only for `--runner graal`)
 - clone this repo
 - get latest maelstrom: https://github.com/jepsen-io/maelstrom/releases
 - `tar -xzf maelstrom.tar.bz2` (expect it to be at `./maelstrom/*` )
@@ -15,7 +16,7 @@ Working through [gossip glommers](https://fly.io/dist-sys/) in Clojure.
 ## Running a Challenge
 
 ```
-bb eval <name> [--mode maelstrom|direct] [--runner bb|lein]
+bb eval <name> [--mode maelstrom|direct] [--runner bb|lein|graal]
 ```
 
 Defaults: `--mode maelstrom --runner bb`.
@@ -25,6 +26,17 @@ Defaults: `--mode maelstrom --runner bb`.
 - `bb eval echo --mode direct <<< '{"src":"c1","dest":"n1","body":{"type":"init","msg_id":1}}'`
 
 To add a challenge, add an entry to `challenges.edn`.
+
+### GraalVM Runner
+
+`--runner graal` builds an uberjar (`lein with-profile -dev,+graal uberjar`), then compiles a native binary to `target/graal/bin/<ns>`. It rebuilds only when `src/` or `project.clj` change.
+
+`native-image` is found via `$GRAALVM_HOME/bin/native-image`, then `PATH`. Set `GRAALVM_HOME` to the GraalVM home dir (on macOS, the `Contents/Home` dir inside the download):
+
+```
+export GRAALVM_HOME=~/Downloads/graalvm-jdk-25.0.3+9.1/Contents/Home
+bb eval echo --runner graal
+```
 
 
 ## Tracing a Single Broadcast
