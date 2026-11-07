@@ -8,5 +8,9 @@
              :graal {:dependencies [[com.github.clj-easy/graal-build-time "1.0.5"]]
                      :jvm-opts ["-Dclojure.compiler.direct-linking=true"]
                      :aot :all
-                     :uberjar-name "gossip-glomers-graal.jar"}})
+                     :uberjar-name "gossip-glomers-graal.jar"}
+             ;; lein with-profile -dev,+jvm uberjar
+             :jvm {:jvm-opts ["-Dclojure.compiler.direct-linking=true"]
+                   :aot :all
+                   :uberjar-name "gossip-glomers-jvm.jar"}})
 

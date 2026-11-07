@@ -12,19 +12,31 @@
 (def maelstrom-path "./maelstrom/maelstrom")
 
 (def default-native-image-path
-  "")
+  "/Users/rafal/Downloads/BIG/graalvm-jdk-25.0.3+9.1/Contents/Home/bin/native-image")
 
 (def graal-jar-path "target/gossip-glomers-graal.jar")
+
+(def jvm-jar-path "target/gossip-glomers-jvm.jar")
+
+(def jvm-opts
+  ["-XX:+UseSerialGC"
+   "-Xmx64m"
+   "-Xss512k"
+   "-XX:TieredStopAtLevel=1"
+   "-XX:CICompilerCount=1"])
+
+(def aot-training-input
+  "{\"src\":\"c0\",\"dest\":\"n0\",\"body\":{\"type\":\"init\",\"msg_id\":1,\"node_id\":\"n0\",\"node_ids\":[\"n0\"]}}\n")
 
 (def cli-spec
   {:mode {:default "maelstrom"
           :validate #{"maelstrom" "direct"}}
    :runner {:default "bb"
-            :validate #{"bb" "lein" "graal"}}
+            :validate #{"bb" "lein" "graal" "jvm"}}
    :quiet {:coerce :boolean}})
 
 (def usage
-  "Usage: bb eval <name> [--mode maelstrom|direct] [--runner bb|lein|graal] [--quiet]")
+  "Usage: bb eval <name> [--mode maelstrom|direct] [--runner bb|lein|graal|jvm] [--quiet]")
 
 (defn print-err! [message]
   (binding [*out* *err*]
@@ -49,11 +61,11 @@
          (not (fs/which "bb")))
     (conj "bb (not on PATH)")
 
-    (and (#{"lein" "graal"} runner)
+    (and (#{"lein" "graal" "jvm"} runner)
          (not (fs/which "lein")))
     (conj "lein (not on PATH)")
 
-    (and (or (#{"lein" "graal"} runner)
+    (and (or (#{"lein" "graal" "jvm"} runner)
              (= "maelstrom" mode))
          (not (fs/which "java")))
     (conj "java (not on PATH)")
@@ -85,11 +97,21 @@
 (defn native-binary-path [challenge-ns]
   (str (fs/path "target" "graal" "bin" (str challenge-ns))))
 
+(defn aot-cache-path [challenge-ns]
+  (str (fs/path "target" "jvm" (str challenge-ns ".aot"))))
+
+(defn java-command [challenge-ns extra-opts]
+  (concat ["java"]
+          jvm-opts
+          extra-opts
+          ["-cp" jvm-jar-path (munge (str challenge-ns))]))
+
 (defn node-command [runner challenge-ns]
   (case runner
     "bb" ["bb" "-m" (str challenge-ns)]
     "lein" ["lein" "with-profile" "-dev" "run" "-m" (str challenge-ns)]
-    "graal" [(native-binary-path challenge-ns)]))
+    "graal" [(native-binary-path challenge-ns)]
+    "jvm" (java-command challenge-ns [(str "-XX:AOTCache=" (aot-cache-path challenge-ns))])))
 
 (defn write-wrapper! [{:keys [challenge-name runner challenge-ns]}]
   (let [path (fs/path "target" "bin" (str challenge-name "-" runner ".sh"))]
@@ -133,6 +155,16 @@
                        "-o" binary
                        (munge (str challenge-ns))]))))
 
+(defn build-jvm! [{:keys [challenge-ns]}]
+  (let [aot-cache (aot-cache-path challenge-ns)]
+    (when (stale? jvm-jar-path ["src" "project.clj"])
+      (shell-or-exit! ["lein" "with-profile" "-dev,+jvm" "uberjar"]))
+    (when (stale? aot-cache [jvm-jar-path])
+      (fs/create-dirs (fs/parent aot-cache))
+      (let [command (java-command challenge-ns [(str "-XX:AOTCacheOutput=" aot-cache)])]
+        (print-err! (str "$ " (string/join " " command) " < init message"))
+        (apply process/shell {:in aot-training-input :out :discard} command)))))
+
 (defn run-direct! [{:keys [runner challenge-ns]}]
   (System/exit (shell! (node-command runner challenge-ns))))
 
@@ -163,8 +195,10 @@
                          :challenge challenge
                          :challenge-ns (:challenge/ns challenge))]
       (check-tools! options)
-      (when (= "graal" (:runner opts))
-        (build-native! options))
+      (case (:runner opts)
+        "graal" (build-native! options)
+        "jvm" (build-jvm! options)
+        nil)
       (case (:mode opts)
         "direct" (run-direct! options)
         "maelstrom" (run-maelstrom! options)))))

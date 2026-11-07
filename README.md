@@ -16,7 +16,7 @@ Working through [gossip glommers](https://fly.io/dist-sys/) in Clojure.
 ## Running a Challenge
 
 ```
-bb eval <name> [--mode maelstrom|direct] [--runner bb|lein|graal]
+bb eval <name> [--mode maelstrom|direct] [--runner bb|lein|graal|uberjar]
 ```
 
 Defaults: `--mode maelstrom --runner bb`.
