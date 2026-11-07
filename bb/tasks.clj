@@ -47,11 +47,11 @@
   {:mode {:default "maelstrom"
           :validate #{"maelstrom" "direct"}}
    :runner {:default "bb"
-            :validate #{"bb" "lein" "graal" "jvm"}}
+            :validate #{"bb" "lein" "graal" "uberjar"}}
    :quiet {:coerce :boolean}})
 
 (def usage
-  "Usage: bb eval <name> [--mode maelstrom|direct] [--runner bb|lein|graal|jvm] [--quiet]")
+  "Usage: bb eval <name> [--mode maelstrom|direct] [--runner bb|lein|graal|uberjar] [--quiet]")
 
 (defn print-err! [message]
   (binding [*out* *err*]
@@ -76,11 +76,11 @@
          (not (fs/which "bb")))
     (conj "bb (not on PATH)")
 
-    (and (#{"lein" "graal" "jvm"} runner)
+    (and (#{"lein" "graal" "uberjar"} runner)
          (not (fs/which "lein")))
     (conj "lein (not on PATH)")
 
-    (and (or (#{"lein" "graal" "jvm"} runner)
+    (and (or (#{"lein" "graal" "uberjar"} runner)
              (= "maelstrom" mode))
          (not (fs/which "java")))
     (conj "java (not on PATH)")
@@ -126,7 +126,7 @@
     "bb" ["bb" "-m" (str challenge-ns)]
     "lein" ["lein" "with-profile" "-dev" "run" "-m" (str challenge-ns)]
     "graal" [(native-binary-path challenge-ns)]
-    "jvm" (java-command challenge-ns [(str "-XX:AOTCache=" (aot-cache-path challenge-ns))])))
+    "uberjar" (java-command challenge-ns [(str "-XX:AOTCache=" (aot-cache-path challenge-ns))])))
 
 (defn write-wrapper! [{:keys [challenge-name runner challenge-ns]}]
   (let [path (fs/path "target" "bin" (str challenge-name "-" runner ".sh"))]
@@ -170,7 +170,7 @@
                        "-o" binary
                        (munge (str challenge-ns))]))))
 
-(defn build-jvm! [{:keys [challenge-ns]}]
+(defn build-uberjar! [{:keys [challenge-ns]}]
   (let [aot-cache (aot-cache-path challenge-ns)]
     (when (stale? jvm-jar-path ["src" "project.clj"])
       (shell-or-exit! ["lein" "with-profile" "-dev,+jvm" "uberjar"]))
@@ -212,7 +212,7 @@
       (check-tools! options)
       (case (:runner opts)
         "graal" (build-native! options)
-        "jvm" (build-jvm! options)
+        "uberjar" (build-uberjar! options)
         nil)
       (case (:mode opts)
         "direct" (run-direct! options)

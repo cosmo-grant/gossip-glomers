@@ -1,5 +1,5 @@
 {:deps {com.hyperfiddle/rcf {:mvn/version "20220926-202227"}}
  :paths ["src" "bb"]
  :tasks {:requires ([tasks])
-         eval {:doc "Evaluate a challenge. bb eval <name> [--mode maelstrom|direct] [--runner bb|lein|graal|jvm] [--quiet]"
+         eval {:doc "Evaluate a challenge. bb eval <name> [--mode maelstrom|direct] [--runner bb|lein|graal|uberjar] [--quiet]"
                :task (tasks/run *command-line-args*)}}}
