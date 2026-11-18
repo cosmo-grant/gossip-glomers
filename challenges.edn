@@ -29,19 +29,34 @@
                                            "--rate" "10"
                                            "--nemesis" "partition"]}
 
- "broadcast-d" {:challenge/ns gossip-glomers.broadcast-d
-                :challenge/workload "broadcast"
-                :challenge/maelstrom-args ["--node-count" "25"
-                                           "--time-limit" "20"
-                                           "--rate" "100"
-                                           "--latency" "100"]}
+ "broadcast-d-tree" {:challenge/ns gossip-glomers.broadcast-d
+                     :challenge/workload "broadcast"
+                     :challenge/maelstrom-args ["--node-count" "25"
+                                                "--time-limit" "20"
+                                                "--rate" "100"
+                                                "--latency" "100"
+                                                "--topology" "tree4"]}
+ "broadcast-d-total" {:challenge/ns gossip-glomers.broadcast-d
+                      :challenge/workload "broadcast"
+                      :challenge/maelstrom-args ["--node-count" "25"
+                                                 "--time-limit" "20"
+                                                 "--rate" "100"
+                                                 "--latency" "100"
+                                                 "--topology" "total"]}
 
  "broadcast-d-trace" {:challenge/ns gossip-glomers.broadcast-d
                       :challenge/workload "single-broadcast"
                       :challenge/maelstrom-path "./sh/maelstrom-ext"
                       :challenge/maelstrom-args ["--node-count" "25"
-                                                 "--topology" "tree5"
+                                                 "--topology" "total"
                                                  "--time-limit" "20"
                                                  "--latency" "100"
                                                  "--rate" "1"
-                                                 "--origin" "n0"]}}
+                                                 "--origin" "n0"]}
+ "broadcast-e" {:challenge/ns gossip-glomers.broadcast-e
+                :challenge/workload "broadcast"
+                :challenge/maelstrom-args ["--node-count" "25"
+                                           "--topology" "tree4"
+                                           "--time-limit" "20"
+                                           "--latency" "100"
+                                           "--rate" "100"]}}
