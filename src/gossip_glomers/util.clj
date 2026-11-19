@@ -18,10 +18,11 @@
 (defn print!
   [value]
   (locking o
-    ;;(tap> value)
     (println value)))
 
 (defn send! [message]
+  {:pre [(some? (get-in message [:body :msg_id]))]}
+  (tap> [:SEND message])
   (->> message
        json/generate-string
        print!))
@@ -42,3 +43,15 @@
               (json/parse-string true)
               handler)
       (recur))))
+
+
+
+(defonce log-file (atom nil))
+(defn log-set-id! [id]
+  (reset! log-file
+          (clojure.java.io/writer (str "debug_" id ".txt")))
+  (add-tap (fn [v]
+             (binding [*out* @log-file]
+               (prn v))))
+  nil)
+

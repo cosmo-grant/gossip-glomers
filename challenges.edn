@@ -59,4 +59,13 @@
                                            "--topology" "tree4"
                                            "--time-limit" "20"
                                            "--latency" "100"
-                                           "--rate" "100"]}}
+                                           "--rate" "100"]}
+
+ "grow-only-counter" {:challenge/ns gossip-glomers.grow-only-counter
+                      :challenge/workload "g-counter"
+                      :challenge/maelstrom-args ["--node-count" "3"
+                                                 "--topology" "tree4"
+                                                 "--time-limit" "20"
+                                                 "--nemesis" "partition"
+                                                 "--rate" "100"]}
+ }
