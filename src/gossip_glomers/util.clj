@@ -2,6 +2,11 @@
   (:require
    [cheshire.core :as json]))
 
+(Thread/setDefaultUncaughtExceptionHandler
+ (reify Thread$UncaughtExceptionHandler
+   (uncaughtException [_ t e]
+                      (tap> [:THREAD-ERROR (.getName t) e]))))
+
 (defmacro vthread [& body]
   `(Thread/startVirtualThread (fn [] ~@body)))
 
