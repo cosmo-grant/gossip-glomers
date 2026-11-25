@@ -68,4 +68,12 @@
                                                  "--time-limit" "20"
                                                  "--nemesis" "partition"
                                                  "--rate" "100"]}
+
+ "kafka-a" {:challenge/ns gossip-glomers.kafka-a
+            :challenge/workload "kafka"
+            :challenge/maelstrom-args ["--node-count" "1"
+                                       "--concurrency" "2n"
+                                       "--time-limit" "20"
+                                       "--rate" "1000"]}
+
  }
